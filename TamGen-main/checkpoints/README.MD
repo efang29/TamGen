@@ -1,0 +1,2 @@
+- crossdocked_model: the model trained on crossdocked dataset only; used for fair comparison with previous work
+- crossdock_pdb_A10:  the model trained on both crossdocked and PDB; used for generating novel compounds of TB.
