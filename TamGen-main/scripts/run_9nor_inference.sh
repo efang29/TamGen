@@ -87,14 +87,14 @@ echo "Candidates: $RESULTS/nonvae_candidates.csv"
 echo "=== [5/6] Sweetness filtering — polar set (0 ≤ LogP ≤ 3) ==="
 python scripts/sweetness_filter.py \
     --generated "$RESULTS/nonvae_candidates.csv" \
-    --fart "$FART" \
+    --training-data "$FART" \
     --out "$RESULTS/nonvae_ranked_polar.csv" \
     --logp-min 0 --logp-max 3
 
 echo "=== [6/6] Sweetness filtering — sugar set (LogP < 0) ==="
 python scripts/sweetness_filter.py \
     --generated "$RESULTS/nonvae_candidates.csv" \
-    --fart "$FART" \
+    --training-data "$FART" \
     --out "$RESULTS/nonvae_ranked_sugar.csv" \
     --logp-max 0
 

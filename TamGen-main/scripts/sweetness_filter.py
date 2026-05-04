@@ -12,16 +12,26 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 # Atoms allowed in flavor/sweetener molecules.
-# CHNOPS covers the vast majority of natural sweeteners and approved flavor compounds.
-# Halogens (F, Cl, Br, I) are permitted but capped — sucralose has 3 Cl, so we allow up to 3.
+# CHNOPS covers natural sweeteners. Halogens (F, Cl, Br, I) are allowed but capped at 2
+# (sucralose has 3 Cl but is synthetic; for natural-leaning candidates 2 is a reasonable ceiling).
+# All metals and other heavy atoms are rejected.
 _CHNOPS = frozenset({"C", "H", "N", "O", "P", "S"})
 _HALOGENS = frozenset({"F", "Cl", "Br", "I"})
 _ALLOWED_ATOMS = _CHNOPS | _HALOGENS
-_MAX_HALOGENS = 3
+_MAX_HALOGENS = 2
+
+# Reject molecules that look pharmaceutical rather than food-grade.
+# Piperazine + haloarene is a common drug scaffold (antidepressants, antipsychotics).
+_DRUG_SMARTS = [
+    Chem.MolFromSmarts("N1CCNCC1"),          # piperazine
+    Chem.MolFromSmarts("N1CCCC1"),            # pyrrolidine attached to arene
+    Chem.MolFromSmarts("[#6]-[F,Cl,Br,I]"),  # direct C-halogen bond (aryl or alkyl halide)
+]
 
 
 def _passes_atom_filter(mol) -> bool:
-    """Reject molecules with atoms outside CHNOPS+halogens, or excessive halogens."""
+    """Reject molecules with atoms outside CHNOPS+halogens, excessive halogens,
+    or pharmaceutical scaffolds (piperazine/haloarene drug-like patterns)."""
     halogen_count = 0
     for atom in mol.GetAtoms():
         sym = atom.GetSymbol()
@@ -29,7 +39,14 @@ def _passes_atom_filter(mol) -> bool:
             return False
         if sym in _HALOGENS:
             halogen_count += 1
-    return halogen_count <= _MAX_HALOGENS
+    if halogen_count > _MAX_HALOGENS:
+        return False
+    # If halogens present, reject known pharma scaffolds
+    if halogen_count > 0:
+        for smarts in _DRUG_SMARTS:
+            if smarts is not None and mol.HasSubstructMatch(smarts):
+                return False
+    return True
 
 
 @dataclass(frozen=True)
@@ -88,7 +105,7 @@ def train_sweetness_model(fart_csv: str, *, seed: int = 0):
     valid = df["SMILES"].apply(lambda s: Chem.MolFromSmiles(str(s)) is not None)
     df = df[valid]
     if df.empty:
-        raise ValueError("No valid SMILES found in FART dataset after filtering.")
+        raise ValueError("No valid SMILES found in training dataset after filtering.")
 
     X = featurize_smiles(df["SMILES"].astype(str).tolist())
     y = df["Sweetness_Label"].to_numpy()
@@ -113,7 +130,9 @@ def main():
         description="Score TamGen-generated SMILES for sweetness + filter for flavor constraints."
     )
     ap.add_argument("--generated", required=True, help="TamGen output CSV (must have smiles column).")
-    ap.add_argument("--fart", required=True, help="Cleaned FART CSV.")
+    ap.add_argument("--training-data", dest="training_data", default=None,
+                    help="Combined training CSV (SMILES, Sweetness_Label). Use tamgen_trainingdata.csv.")
+    ap.add_argument("--fart", default=None, help="Alias for --training-data (legacy).")
     ap.add_argument("--out", required=True, help="Output CSV path.")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--mw-min", type=float, default=100.0)
@@ -126,6 +145,10 @@ def main():
                     help="Keep only the top N rows after ranking (default: keep all).")
     args = ap.parse_args()
 
+    training_csv = args.training_data or args.fart
+    if training_csv is None:
+        ap.error("one of --training-data or --fart is required")
+
     constraints = FlavorConstraints(
         mw_min=args.mw_min,
         mw_max=args.mw_max,
@@ -133,7 +156,7 @@ def main():
         logp_max=args.logp_max,
     )
 
-    model, val_acc = train_sweetness_model(args.fart, seed=args.seed)
+    model, val_acc = train_sweetness_model(training_csv, seed=args.seed)
 
     gen = pd.read_csv(args.generated)
     if "smiles" not in gen.columns:

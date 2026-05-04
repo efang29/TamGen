@@ -27,19 +27,12 @@ import pandas as pd
 import requests
 from rdkit import Chem
 
-# Atoms allowed in flavor molecules — same definition as sweetness_filter.py
+# Atoms allowed in flavor molecules — same definition as sweetness_filter.py (CHNOPS only)
 _CHNOPS = frozenset({"C", "H", "N", "O", "P", "S"})
-_HALOGENS = frozenset({"F", "Cl", "Br", "I"})
-_ALLOWED_ATOMS = _CHNOPS | _HALOGENS
-_MAX_HALOGENS = 3
 
 
 def _passes_atom_filter(mol) -> bool:
-    halogen_count = sum(1 for a in mol.GetAtoms() if a.GetSymbol() in _HALOGENS)
-    return (
-        all(a.GetSymbol() in _ALLOWED_ATOMS for a in mol.GetAtoms())
-        and halogen_count <= _MAX_HALOGENS
-    )
+    return all(a.GetSymbol() in _CHNOPS for a in mol.GetAtoms())
 
 
 # ─── COCONUT ──────────────────────────────────────────────────────────────────
