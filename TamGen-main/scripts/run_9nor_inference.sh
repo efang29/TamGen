@@ -8,7 +8,7 @@
 #   --fart      path to training data CSV           (default: ../Datasets/.../tamgen_trainingdata.csv)
 #   --datadir   path to binarized 9NOR pocket data  (default: data/9nor_processed)
 #   --ckpt      path to model checkpoint            (default: checkpoints/crossdock_pdb_A10/checkpoint_best.pt)
-#   --out       output folder                       (default: results_9nor)
+#   --out       output folder                       (default: output/run_<today>_inference)
 #   --beam      beam size                           (default: 20)
 #   --seed-mol  seed SMILES for refinement mode     (default: none — pure de novo)
 #               e.g. --seed-mol "O=C1NS(=O)(=O)c2ccccc21"  (saccharin)
@@ -23,7 +23,7 @@ set -euo pipefail
 # ---------- defaults ----------
 DATADIR="data/9nor_processed"
 CKPT="checkpoints/crossdock_pdb_A10/checkpoint_best.pt"
-RESULTS="results_9nor"
+RESULTS="output/run_$(date +%Y-%m-%d)_inference"
 BEAM=20
 TESTSET="test"
 FART="../Datasets/datasets-clean/datasets-clean-csv/tamgen_trainingdata.csv"
@@ -50,7 +50,7 @@ fi
 mkdir -p "$RESULTS"
 
 # ---------- conditioned generation (VAE) ----------
-echo "=== [1/4] Conditioned (VAE) generation ==="
+echo "=== [1/6] Conditioned (VAE) generation ==="
 python generate_multiseed.py \
     "$DATADIR" \
     -s tg -t m1 \
@@ -63,12 +63,12 @@ python generate_multiseed.py \
     ${SEED_MOL:+--prefix-string "$SEED_MOL"} \
     --gen-vae | tee "$RESULTS/raw_vae.txt"
 
-echo "=== [2/4] Formatting VAE output ==="
+echo "=== [2/6] Formatting VAE output ==="
 python scripts/format_output.py "$RESULTS/raw_vae.txt" "$RESULTS/vae_candidates.csv"
 echo "Candidates: $RESULTS/vae_candidates.csv"
 
 # ---------- unconditioned generation ----------
-echo "=== [3/4] Unconditioned generation ==="
+echo "=== [3/6] Unconditioned generation ==="
 python generate_multiseed.py \
     "$DATADIR" \
     -s tg -t m1 \
@@ -80,7 +80,7 @@ python generate_multiseed.py \
     --use-src-coord \
     ${SEED_MOL:+--prefix-string "$SEED_MOL"} | tee "$RESULTS/raw_nonvae.txt"
 
-echo "=== [4/4] Formatting non-VAE output ==="
+echo "=== [4/6] Formatting non-VAE output ==="
 python scripts/format_output.py "$RESULTS/raw_nonvae.txt" "$RESULTS/nonvae_candidates.csv"
 echo "Candidates: $RESULTS/nonvae_candidates.csv"
 
