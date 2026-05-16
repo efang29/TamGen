@@ -12,13 +12,13 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 # Atoms allowed in flavor/sweetener molecules.
-# CHNOPS covers natural sweeteners. Halogens (F, Cl, Br, I) are allowed but capped at 2
-# (sucralose has 3 Cl but is synthetic; for natural-leaning candidates 2 is a reasonable ceiling).
+# CHNOPS covers natural sweeteners. Halogens (F, Cl, Br, I) are allowed up to _MAX_HALOGENS.
+# Cap raised to 3 so sucralose-class candidates (3 Cl) survive when conditioning on 9NOV.
 # All metals and other heavy atoms are rejected.
 _CHNOPS = frozenset({"C", "H", "N", "O", "P", "S"})
 _HALOGENS = frozenset({"F", "Cl", "Br", "I"})
 _ALLOWED_ATOMS = _CHNOPS | _HALOGENS
-_MAX_HALOGENS = 2
+_MAX_HALOGENS = 3
 
 # Reject molecules that look pharmaceutical rather than food-grade.
 # Piperazine + haloarene is a common drug scaffold (antidepressants, antipsychotics).
